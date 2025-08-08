@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "805573670374",
+    "project_id": "stemm-chat-d96f9",
+    "storage_bucket": "stemm-chat-d96f9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:805573670374:android:0d011b61c0d5e7a9a19227",
+        "android_client_info": {
+          "package_name": "com.example.chatappstemm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0cJZ4w_O3m8-29Xpy0FsRAndLJpElzD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:805573670374:android:8946a525b5aee4e8a19227",
+        "android_client_info": {
+          "package_name": "com.example.stemm_chatapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0cJZ4w_O3m8-29Xpy0FsRAndLJpElzD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
