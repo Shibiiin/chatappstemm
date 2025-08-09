@@ -1,3 +1,4 @@
+import 'package:chatappstemm/Stemm%20Chat%20App/presentation/theme/local_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -46,6 +47,8 @@ class AuthController with ChangeNotifier {
       if (user != null) {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('userId', user.uid);
+        await fetchCurrentUserDetails();
+
         customToastMsg("Login Success");
       }
 
@@ -58,7 +61,9 @@ class AuthController with ChangeNotifier {
       customToastMsg("Login Failed: $e");
       errorPrint("General Login Error: $e");
     } finally {
+      fetchCurrentUserDetails();
       _setLoading(false);
+      notifyListeners();
     }
     return null;
   }
@@ -98,10 +103,11 @@ class AuthController with ChangeNotifier {
 
       await Future.delayed(const Duration(milliseconds: 500));
       await clearFields();
-
+      await fetchCurrentUserDetails();
       if (context.mounted) {
         context.go(AppRoutes.dashboard);
       }
+      notifyListeners();
     } on FirebaseAuthException catch (e) {
       customToastMsg("Registration Failed: ${e.message}");
       errorPrint("FirebaseAuth Error: ${e.message}");
@@ -129,7 +135,7 @@ class AuthController with ChangeNotifier {
           'uid': uid,
           'name': name.trim(),
           'email': email.trim(),
-          'password': password.trim(), // Consider not storing passwords
+          'password': password.trim(),
           'phoneNumber': phone.trim(),
           'profileImageUrl': '',
           'createdTime': Timestamp.now(),
@@ -145,10 +151,34 @@ class AuthController with ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
+  String? userName;
+  String? phoneNumber;
+  Future<void> fetchCurrentUserDetails() async {
+    try {
+      final User? user = _auth.currentUser;
+      if (user != null) {
+        final docSnapshot = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        if (docSnapshot.exists) {
+          userName = docSnapshot.data()?['name'];
+          phoneNumber = docSnapshot.data()?['phoneNumber'];
+          notifyListeners();
+        }
+      }
+      successPrint("Details fetched: Name - $userName, Phone - $phoneNumber");
+    } catch (e) {
+      errorPrint("Error fetching user details: $e");
+      customToastMsg("Error fetching user details: $e");
+    }
+  }
+
+  Future<void> logout(BuildContext context) async {
     await _auth.signOut();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove('userId');
+    await prefs.remove(LocalStorage.userId);
+    context.go(AppRoutes.login);
     notifyListeners();
   }
 

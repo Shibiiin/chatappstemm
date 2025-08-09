@@ -85,11 +85,7 @@ class LoginPage extends StatelessWidget {
                   Consumer<AuthController>(
                     builder: (context, value, child) {
                       return ElevatedButton(
-                        onPressed:
-                            // () {
-                            //   context.go(AppRoutes.dashboard);
-                            // },
-                            controller.isLoading
+                        onPressed: controller.isLoading
                             ? null // Disable button while loading
                             : () async {
                                 if (controller.loginEmail.text.isEmpty) {

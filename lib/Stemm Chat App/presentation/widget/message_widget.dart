@@ -1,23 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../theme/app_colors.dart';
 
 class MessageWidget extends StatefulWidget {
+  final String messageText;
+  final DateTime timestamp;
   final bool isSender;
+  final String name;
   final Function(String messageId) onLongPress;
   final bool isSelected;
   final Function() onTap;
-  final String name;
 
   const MessageWidget({
     Key? key,
 
+    required this.messageText,
+    required this.timestamp,
     required this.isSender,
+    required this.name,
     required this.onLongPress,
     required this.isSelected,
     required this.onTap,
-
-    required this.name,
   });
 
   @override
@@ -33,9 +37,8 @@ class _MessageWidgetState extends State<MessageWidget> {
   Widget build(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
 
-    return GestureDetector(
-      onTap: () {},
-      onLongPress: () {},
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       child: Row(
         mainAxisAlignment: widget.isSender
             ? MainAxisAlignment.end
@@ -43,75 +46,36 @@ class _MessageWidgetState extends State<MessageWidget> {
         children: <Widget>[
           if (!widget.isSender)
             const Padding(
-              padding: EdgeInsets.only(right: 10.0),
-              child: CircleAvatar(
-                backgroundImage: AssetImage('assets/images/user_2.png'),
-                radius: 15,
-              ),
+              padding: EdgeInsets.only(right: 8.0),
+              child: CircleAvatar(child: Icon(Icons.person), radius: 15),
             ),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: widget.isSender
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
-              IntrinsicWidth(
-                child: Container(
-                  constraints: BoxConstraints(maxWidth: w * 0.7),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15.0,
-                    vertical: 10.0,
-                  ),
-                  margin: const EdgeInsets.symmetric(vertical: 5.0),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    // Rectangle shape
-                    color: widget.isSelected
-                        ? Colors.red
-                        : (widget.isSender
-                              ? AppColors.green
-                              : AppColors.chatBlack),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      /// Message Content
-                      Text(
-                        "displayText",
-                        style: const TextStyle(
-                          color: AppColors.white,
-                          fontSize: 14,
-                        ),
-                        maxLines: isExpanded ? null : 15,
-                      ),
-
-                      /// Timestamp at Right End Below the Message
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 5.0),
-                          child: Row(
-                            mainAxisAlignment: widget.isSender
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.end,
-                            children: [
-                              Text(
-                                "Time stamp",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: AppColors.white.withOpacity(0.8),
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-
-                              const Icon(
-                                Icons.done,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              Container(
+                constraints: BoxConstraints(maxWidth: w * 0.75),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14.0,
+                  vertical: 10.0,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.isSender
+                      ? AppColors.green
+                      : AppColors.chatBlack,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  widget.messageText,
+                  style: const TextStyle(color: AppColors.white, fontSize: 16),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0, left: 5, right: 5),
+                child: Text(
+                  DateFormat('hh:mm a').format(widget.timestamp),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ),
             ],

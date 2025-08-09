@@ -55,11 +55,6 @@ class _ChatInputFieldState extends State<ChatInputField> {
       child: SafeArea(
         child: Row(
           children: [
-            GestureDetector(
-              onTap: () {},
-              child: Icon(Icons.mic, color: AppColors.kPrimaryColor),
-            ),
-            const SizedBox(width: kDefaultPadding),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -71,13 +66,6 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.sentiment_satisfied_alt_outlined,
-                      color: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge!.color!.withOpacity(0.64),
-                    ),
-                    const SizedBox(width: kDefaultPadding / 2),
                     Expanded(
                       flex: 4,
                       child: TextField(
@@ -116,6 +104,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
             ),
             const SizedBox(width: 10),
             CircleAvatar(
+              backgroundColor: AppColors.kPrimaryColor,
               child: IconButton(
                 onPressed: () async {
                   widget.onSendPressed(chatTxtController.text);
