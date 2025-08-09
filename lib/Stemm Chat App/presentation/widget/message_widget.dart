@@ -25,6 +25,7 @@ class MessageWidget extends StatefulWidget {
 
 class _MessageWidgetState extends State<MessageWidget> {
   Widget _buildMessageContent() {
+    final String senderId = widget.messageData['senderId'] ?? '';
     final String? type = widget.messageData['type'] as String?;
 
     switch (type) {
@@ -32,12 +33,14 @@ class _MessageWidgetState extends State<MessageWidget> {
         return _VideoMessageContent(
           thumbnailUrl: widget.messageData['thumbnailUrl'],
           videoUrl: widget.messageData['url'],
+          senderId: senderId,
         );
       case 'file':
         return _FileMessageContent(
           fileName: widget.messageData['fileName'],
           fileSize: widget.messageData['fileSize'],
           fileUrl: widget.messageData['url'],
+          senderId: senderId,
         );
       case 'text':
       default:
@@ -113,8 +116,15 @@ class _MessageWidgetState extends State<MessageWidget> {
 class _VideoMessageContent extends StatefulWidget {
   final String? thumbnailUrl;
   final String? videoUrl;
+  final String senderId;
+  final String? uploadKey; // ✅ match key with uploadFile path
 
-  const _VideoMessageContent({this.thumbnailUrl, this.videoUrl});
+  const _VideoMessageContent({
+    this.thumbnailUrl,
+    this.videoUrl,
+    required this.senderId,
+    this.uploadKey,
+  });
 
   @override
   State<_VideoMessageContent> createState() => _VideoMessageContentState();
@@ -153,31 +163,17 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
 
   Future<void> _downloadAndPlayVideo() async {
     if (_isDownloading) return;
-
-    final controller = Provider.of<ChatController>(context, listen: false);
-    if (widget.videoUrl == null) return;
-
     if (_isDownloaded) {
-      final result = await OpenFile.open(_localVideoPath);
-      if (result.type != ResultType.done) {
-        customToastMsg("Could not open video: ${result.message}");
-      }
+      await OpenFile.open(_localVideoPath);
       return;
     }
 
     if (mounted) setState(() => _isDownloading = true);
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Downloading video...")));
-
     try {
+      final controller = Provider.of<ChatController>(context, listen: false);
       final downloadPath = await controller.getDownloadPath();
-      if (downloadPath == null) {
-        customToastMsg("Could not get download path. Permission denied?");
-        if (mounted) setState(() => _isDownloading = false);
-        return;
-      }
+      if (downloadPath == null) return;
 
       final fileName = widget.videoUrl!.split('/').last.split('?').first;
       final filePath = '$downloadPath/$fileName';
@@ -193,21 +189,20 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
         });
       }
 
-      customToastMsg("Video saved to your Downloads folder!");
       await OpenFile.open(filePath);
-    } catch (e) {
-      errorPrint("Failed to download video: $e");
-      customToastMsg("Failed to download video.");
+    } catch (_) {
       if (mounted) setState(() => _isDownloading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+    final isSender = widget.senderId == currentUserId;
+
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Fixed size container to avoid shrinking
         SizedBox(
           height: 200,
           width: 200,
@@ -218,36 +213,33 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
                 )
               : Container(
                   color: Colors.black,
-                  child: const Center(
-                    child: Icon(Icons.videocam_off, color: Colors.white),
-                  ),
+                  child: const Icon(Icons.videocam_off, color: Colors.white),
                 ),
         ),
 
-        // Upload progress overlay
-        ValueListenableBuilder<double>(
-          valueListenable: Provider.of<ChatController>(context).uploadProgress,
-          builder: (context, progress, _) {
+        // ✅ Correct progress key
+        ValueListenableBuilder<Map<String, double>>(
+          valueListenable: Provider.of<ChatController>(
+            context,
+          ).uploadProgressMap,
+          builder: (context, progressMap, _) {
+            final progress = progressMap[widget.uploadKey] ?? 0.0;
             if (progress > 0 && progress < 1) {
               return Container(
-                height: 200,
-                width: 200,
                 color: Colors.black54,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(
-                        value: progress,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        "${(progress * 100).toStringAsFixed(0)}%",
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      value: progress,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "${(progress * 100).toStringAsFixed(0)}%",
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ],
                 ),
               );
             }
@@ -255,22 +247,13 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
           },
         ),
 
-        if (_isDownloading)
-          const CircularProgressIndicator(color: Colors.white)
-        else if (!_isDownloaded)
+        if (!isSender && !_isDownloaded && !_isDownloading)
           GestureDetector(
             onTap: _downloadAndPlayVideo,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Colors.black54,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.download_for_offline,
-                color: Colors.white,
-                size: 30,
-              ),
+            child: const Icon(
+              Icons.download_for_offline,
+              color: Colors.white,
+              size: 30,
             ),
           ),
       ],
@@ -282,8 +265,14 @@ class _FileMessageContent extends StatefulWidget {
   final String? fileName;
   final int? fileSize;
   final String? fileUrl;
+  final String? senderId; // ✅ Added senderId
 
-  const _FileMessageContent({this.fileName, this.fileSize, this.fileUrl});
+  const _FileMessageContent({
+    this.fileName,
+    this.fileSize,
+    this.fileUrl,
+    required this.senderId,
+  });
 
   @override
   State<_FileMessageContent> createState() => _FileMessageContentState();
@@ -367,6 +356,10 @@ class _FileMessageContentState extends State<_FileMessageContent> {
 
   @override
   Widget build(BuildContext context) {
+    final firebaseAuth = FirebaseAuth.instance;
+    final currentUserId = firebaseAuth.currentUser!.uid;
+    final isSender = widget.senderId == currentUserId;
+
     return GestureDetector(
       onTap: _downloadAndOpenFile,
       child: Stack(
@@ -403,29 +396,31 @@ class _FileMessageContentState extends State<_FileMessageContent> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                if (_isDownloading)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                else if (!_isDownloaded)
-                  const Icon(Icons.download_for_offline, color: Colors.white)
-                else
-                  const SizedBox(width: 24),
+                // ✅ Show download icon only if NOT sender
+                if (!isSender)
+                  if (_isDownloading)
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  else if (!_isDownloaded)
+                    const Icon(Icons.download_for_offline, color: Colors.white)
+                  else
+                    const SizedBox(width: 24),
               ],
             ),
           ),
 
-          // Upload progress overlay
-          ValueListenableBuilder<double>(
+          ValueListenableBuilder<Map<String, double>>(
             valueListenable: Provider.of<ChatController>(
               context,
-            ).uploadProgress,
-            builder: (context, progress, _) {
+            ).uploadProgressMap,
+            builder: (context, progressMap, _) {
+              final progress = progressMap[widget.fileUrl] ?? 0.0;
               if (progress > 0 && progress < 1) {
                 return Container(
                   color: Colors.black54,

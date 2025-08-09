@@ -190,20 +190,29 @@ class ChatController with ChangeNotifier {
   }
 
   ///Upload files
-  ValueNotifier<double> uploadProgress = ValueNotifier(0.0);
+  ValueNotifier<Map<String, double>> uploadProgressMap = ValueNotifier({});
 
   Future<String> uploadFile(File file, String path) async {
-    uploadProgress.value = 0.0;
+    uploadProgressMap.value = {...uploadProgressMap.value, path: 0.0};
+
     final ref = _storage.ref().child(path);
     final uploadTask = ref.putFile(file);
 
-    uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-      final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-      uploadProgress.value = progress;
+    uploadTask.snapshotEvents.listen((snapshot) {
+      if (snapshot.totalBytes > 0) {
+        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+
+        uploadProgressMap.value = {
+          ...uploadProgressMap.value,
+          path: progress.clamp(0.0, 1.0),
+        };
+      }
     });
 
     final snapshot = await uploadTask.whenComplete(() {});
-    uploadProgress.value = 0.0;
+
+    uploadProgressMap.value = {...uploadProgressMap.value, path: 1.0};
+
     return await snapshot.ref.getDownloadURL();
   }
 

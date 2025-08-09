@@ -27,9 +27,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
   final List<File> _pendingFiles = [];
   void handleFilePicked(File file, {bool isVideo = false}) {
     final chatController = Provider.of<ChatController>(context, listen: false);
+
+    final fileKey = 'uploads/${file.path.split('/').last}'; // create once
+
     setState(() {
       _pendingFiles.add(file);
     });
+
     chatController
         .sendMediaMessage(
           file: file,
@@ -84,8 +88,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
                   final messages = snapshot.data?.docs ?? [];
                   List<dynamic> displayItems = [];
-                  displayItems.addAll(messages);
                   displayItems.addAll(_pendingFiles);
+                  displayItems.addAll(messages);
 
                   return ListView.builder(
                     reverse: true,
@@ -97,9 +101,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         final isVideo =
                             item.path.endsWith('.mp4') ||
                             item.path.endsWith('.mov');
+                        final fileKey = 'uploads/${item.path.split('/').last}';
+
                         return PendingUploadWidget(
                           file: item,
                           isVideo: isVideo,
+                          fileKey: fileKey, // correct variable
                         );
                       } else if (item is QueryDocumentSnapshot) {
                         final messageData = item.data() as Map<String, dynamic>;
@@ -109,7 +116,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       }
                     },
                   );
-                  // --- END OF CORRECTION ---
                 },
               ),
             ),

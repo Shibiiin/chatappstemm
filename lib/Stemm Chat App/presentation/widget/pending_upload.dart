@@ -10,11 +10,13 @@ import '../manager/chat_Controller.dart';
 class PendingUploadWidget extends StatefulWidget {
   final File file;
   final bool isVideo;
+  final String fileKey;
 
   const PendingUploadWidget({
     super.key,
     required this.file,
     required this.isVideo,
+    required this.fileKey,
   });
 
   @override
@@ -85,12 +87,14 @@ class _PendingUploadWidgetState extends State<PendingUploadWidget> {
                         ),
                 ),
 
-                ValueListenableBuilder<double>(
+                ValueListenableBuilder<Map<String, double>>(
                   valueListenable: Provider.of<ChatController>(
                     context,
                     listen: false,
-                  ).uploadProgress,
-                  builder: (context, progress, _) {
+                  ).uploadProgressMap,
+                  builder: (context, progressMap, _) {
+                    final fileProgress = progressMap[widget.fileKey] ?? 0.0;
+
                     return Container(
                       height: 200,
                       width: 200,
@@ -103,12 +107,12 @@ class _PendingUploadWidgetState extends State<PendingUploadWidget> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             CircularProgressIndicator(
-                              value: progress,
+                              value: fileProgress,
                               color: Colors.white,
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              "${(progress * 100).toStringAsFixed(0)}%",
+                              "${(fileProgress * 100).toStringAsFixed(0)}%",
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
