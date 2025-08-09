@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- This allows sharing from external storage (like the Downloads folder) -->
+    <external-path name="external_files" path="."/>
+
+    <!-- THIS IS THE NEW LINE YOU NEED TO ADD -->
+    <!-- This allows sharing from the directory returned by getTemporaryDirectory() -->
+    <cache-path name="cache_files" path="."/>
+</paths>

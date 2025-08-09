@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
 class ChatController with ChangeNotifier {
@@ -208,5 +209,43 @@ class ChatController with ChangeNotifier {
     );
     alertPrint("Video Thumbnail Generated");
     return fileName != null ? File(fileName) : null;
+  }
+
+  ///download the files
+  Future<String?> getDownloadPath() async {
+    Directory? directory;
+    alertPrint("Downloading started");
+    try {
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+      }
+      alertPrint("Request Status $status");
+      if (status.isGranted) {
+        if (Platform.isIOS) {
+          directory = await getApplicationDocumentsDirectory();
+        } else {
+          directory = Directory('/storage/emulated/0/Download');
+          if (!await directory.exists()) {
+            directory = await getExternalStorageDirectory();
+            alertPrint("Directory $directory");
+          }
+        }
+        if (directory != null) {
+          String appFolderPath = '${directory.path}/Chat App';
+          final appDir = Directory(appFolderPath);
+          if (!await appDir.exists()) {
+            await appDir.create(recursive: true);
+          }
+          return appFolderPath;
+        }
+      } else {
+        customToastMsg("Storage permission denied.");
+        errorPrint("Storage permission denied.");
+      }
+    } catch (err) {
+      errorPrint("Error getting download path: $err");
+    }
+    return null;
   }
 }

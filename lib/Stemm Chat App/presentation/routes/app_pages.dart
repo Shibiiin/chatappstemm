@@ -6,6 +6,7 @@ import '../pages/auth/register_page.dart';
 import '../pages/contact_book_page.dart';
 import '../pages/dashboard_bottomBar_screen.dart';
 import '../pages/splash.dart';
+import '../widget/video_player.dart';
 import 'appRoutes.dart';
 
 class GoRouterPage {
@@ -38,6 +39,13 @@ class GoRouterPage {
           final String userName = data['name'] as String;
 
           return MessagesScreen(id: userId, name: userName);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.videoPlayer,
+        builder: (context, state) {
+          final String videoUrl = state.extra as String;
+          return VideoPlayerPage(videoUrl: videoUrl);
         },
       ),
     ],
