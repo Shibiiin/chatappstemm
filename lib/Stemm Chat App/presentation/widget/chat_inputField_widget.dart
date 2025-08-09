@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../constant.dart';
 import '../theme/app_colors.dart';
@@ -8,11 +12,16 @@ class ChatInputField extends StatefulWidget {
   final VoidCallback onCancelReply;
   final ValueChanged<String>? onTextChanged;
 
+  final Function(File) onFilePicked;
+  final Function(File) onVideoPicked;
+
   const ChatInputField({
     super.key,
     required this.onSendPressed,
     required this.onCancelReply,
     this.onTextChanged,
+    required this.onFilePicked,
+    required this.onVideoPicked,
   });
 
   @override
@@ -22,9 +31,21 @@ class ChatInputField extends StatefulWidget {
 class _ChatInputFieldState extends State<ChatInputField> {
   final chatTxtController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
+  Future<void> _pickDocument() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+    );
+    if (result != null && result.files.single.path != null) {
+      widget.onFilePicked(File(result.files.single.path!));
+    }
+  }
+
+  Future<void> _recordVideo() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? video = await picker.pickVideo(source: ImageSource.camera);
+    if (video != null) {
+      widget.onVideoPicked(File(video.path));
+    }
   }
 
   @override
@@ -35,8 +56,6 @@ class _ChatInputFieldState extends State<ChatInputField> {
 
   @override
   Widget build(BuildContext context) {
-    // final controller = Provider.of<ChatController>(context);
-
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: kDefaultPadding,
@@ -70,20 +89,16 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       flex: 4,
                       child: TextField(
                         controller: chatTxtController,
-                        keyboardType: TextInputType.multiline,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           hintText: "Type message...",
                           border: InputBorder.none,
                         ),
-                        onChanged: (value) {
-                          if (widget.onTextChanged != null) {
-                            widget.onTextChanged!(value);
-                          }
-                        },
+                        onChanged: widget.onTextChanged,
                       ),
                     ),
+                    // Attach Document Icon
                     GestureDetector(
-                      onTap: () {},
+                      onTap: _pickDocument,
                       child: Icon(
                         Icons.attach_file,
                         color: Theme.of(
@@ -91,12 +106,16 @@ class _ChatInputFieldState extends State<ChatInputField> {
                         ).textTheme.bodyLarge!.color!.withOpacity(0.64),
                       ),
                     ),
-                    const SizedBox(width: kDefaultPadding / 4),
-                    Icon(
-                      Icons.camera_alt_outlined,
-                      color: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge!.color!.withOpacity(0.64),
+                    const SizedBox(width: kDefaultPadding / 3),
+
+                    GestureDetector(
+                      onTap: _recordVideo,
+                      child: Icon(
+                        Icons.camera_alt_outlined,
+                        color: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge!.color!.withOpacity(0.64),
+                      ),
                     ),
                   ],
                 ),
@@ -106,11 +125,10 @@ class _ChatInputFieldState extends State<ChatInputField> {
             CircleAvatar(
               backgroundColor: AppColors.kPrimaryColor,
               child: IconButton(
-                onPressed: () async {
-                  widget.onSendPressed(chatTxtController.text);
-                  chatTxtController.clear();
-                  if (widget.onTextChanged != null) {
-                    widget.onTextChanged!("");
+                onPressed: () {
+                  if (chatTxtController.text.trim().isNotEmpty) {
+                    widget.onSendPressed(chatTxtController.text);
+                    chatTxtController.clear();
                   }
                 },
                 icon: const Icon(Icons.send, color: AppColors.white),

@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:chatappstemm/Stemm%20Chat%20App/presentation/widget/custom_Toast.dart';
 import 'package:chatappstemm/Stemm%20Chat%20App/presentation/widget/custom_print.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 class ChatController with ChangeNotifier {
   List<QueryDocumentSnapshot> _users = [];
@@ -10,6 +15,7 @@ class ChatController with ChangeNotifier {
   String? _errorMessage;
   final firebaseAuth = FirebaseAuth.instance;
   final fireStore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   List<QueryDocumentSnapshot> get users => _users;
   bool get isLoading => _isLoading;
@@ -34,12 +40,12 @@ class ChatController with ChangeNotifier {
     }
   }
 
+  ///send normal message
   Future<void> sendMessage({
     required String receiverId,
     required String receiverName,
-    required String message,
+    required Map<String, dynamic> messageData,
   }) async {
-    alertPrint("Message Sending Started...");
     final String currentUserId = firebaseAuth.currentUser!.uid;
     final userDoc = await fireStore
         .collection('users')
@@ -48,50 +54,43 @@ class ChatController with ChangeNotifier {
     final String currentUserName = userDoc.data()?['name'] ?? 'Unknown User';
     final Timestamp timestamp = Timestamp.now();
 
-    ///Create the Chat Room ID
     List<String> participants = [currentUserId, receiverId];
     participants.sort();
     String chatRoomId = participants.join('_');
-    alertPrint("Chat Room ID on send message: $chatRoomId");
 
-    /// Define the document path
     final DocumentReference chatRoomDocRef = fireStore
         .collection('chats')
         .doc(chatRoomId);
-    alertPrint("Chat Room Doc Ref: $chatRoomDocRef");
-
-    /// Create document path
     final DocumentReference messageDocRef = chatRoomDocRef
         .collection('messages')
         .doc();
-    alertPrint("Message Doc Ref: $messageDocRef");
 
-    /// Get the unique ID for message
-    final String messageId = messageDocRef.id;
-    alertPrint("Message ID: $messageId");
-
-    ///Create the Message Data
-    Map<String, dynamic> newMessageData = {
-      'messageId': messageId,
+    // Add common fields to the message data
+    messageData.addAll({
+      'messageId': messageDocRef.id,
       'senderId': currentUserId,
       'receiverId': receiverId,
-      'message': message,
       'timestamp': timestamp,
       'participants': participants,
-    };
-    alertPrint("New Message Data: $newMessageData");
+    });
 
-    ///  Use a Batch Write to update everything at once
+    // Determine lastMessage text for the dashboard
+    String lastMessageText;
+    switch (messageData['type']) {
+      case 'video':
+        lastMessageText = 'sent a video';
+        break;
+      case 'file':
+        lastMessageText = messageData['fileName'] ?? 'sent a file';
+        break;
+      default:
+        lastMessageText = messageData['message'] ?? '';
+    }
+
     final WriteBatch batch = fireStore.batch();
-    alertPrint("Batch: $batch");
-
-    /// Set the data for the new message document
-    batch.set(messageDocRef, newMessageData);
-    alertPrint("Message Doc Ref: $messageDocRef");
-
-    ///Set/Update the metadata on the main chat room document (for the dashboard)
+    batch.set(messageDocRef, messageData);
     batch.set(chatRoomDocRef, {
-      'lastMessage': message,
+      'lastMessage': lastMessageText,
       'lastMessageTimestamp': timestamp,
       'participants': participants,
       'participantInfo': {
@@ -99,9 +98,66 @@ class ChatController with ChangeNotifier {
         receiverId: receiverName,
       },
     }, SetOptions(merge: true));
-    alertPrint("Chat Room Doc Ref: $chatRoomDocRef");
 
     await batch.commit();
+  }
+
+  ///send media message
+  Future<void> sendMediaMessage({
+    required File file,
+    required String receiverId,
+    required String receiverName,
+    required String type,
+  }) async {
+    try {
+      alertPrint("SendMedia starting...");
+      final String currentUserId = firebaseAuth.currentUser!.uid;
+      List<String> ids = [currentUserId, receiverId];
+      ids.sort();
+      String chatRoomId = ids.join('_');
+      String fileName = file.path.split('/').last;
+
+      String fileUrl = await uploadFile(file, 'chats/$chatRoomId/$fileName');
+
+      Map<String, dynamic> messageData;
+
+      if (type == 'video') {
+        ///For video, generate and upload a thumbnail
+        File? thumbnail = await generateVideoThumbnail(file.path);
+        String thumbnailUrl = '';
+        if (thumbnail != null) {
+          thumbnailUrl = await uploadFile(
+            thumbnail,
+            'chats/$chatRoomId/thumbnails/$fileName.webp',
+          );
+        }
+        messageData = {
+          'type': 'video',
+          'url': fileUrl,
+          'thumbnailUrl': thumbnailUrl,
+        };
+        successPrint("Message Data Type: video $messageData}");
+      } else {
+        // 'file'
+        messageData = {
+          'type': 'file',
+          'url': fileUrl,
+          'fileName': fileName,
+          'fileSize': await file.length(),
+        };
+
+        successPrint("Message Data Type: video $messageData}");
+      }
+
+      await sendMessage(
+        receiverId: receiverId,
+        receiverName: receiverName,
+        messageData: messageData,
+      );
+    } catch (e) {
+      errorPrint("Failed to Send the Media $e");
+      customToastMsg("Failed to send media: $e");
+    }
   }
 
   ///get messages
@@ -129,5 +185,28 @@ class ChatController with ChangeNotifier {
         .where('participants', arrayContains: firebaseAuth.currentUser!.uid)
         .orderBy('lastMessageTimestamp', descending: true)
         .snapshots();
+  }
+
+  ///Upload files
+  Future<String> uploadFile(File file, String path) async {
+    alertPrint("Uploading File");
+    final ref = _storage.ref().child(path);
+    final uploadTask = ref.putFile(file);
+    final snapshot = await uploadTask.whenComplete(() {});
+    alertPrint("File Uploaded $snapshot");
+    return await snapshot.ref.getDownloadURL();
+  }
+
+  ///generate video thumbnail
+  Future<File?> generateVideoThumbnail(String videoPath) async {
+    alertPrint("Generating Video Thumbnail");
+    final fileName = await VideoThumbnail.thumbnailFile(
+      video: videoPath,
+      thumbnailPath: (await getTemporaryDirectory()).path,
+      imageFormat: ImageFormat.WEBP,
+      quality: 25,
+    );
+    alertPrint("Video Thumbnail Generated");
+    return fileName != null ? File(fileName) : null;
   }
 }
