@@ -53,6 +53,8 @@ dependencies:
   open_file_plus:  ^3.3.1
   path_provider: ^2.1.5
   http: ^1.5.0
+  device_info_plus: ^11.5.0
+  dio: ^5.9.0
 
 dev_dependencies:
   flutter_test:
