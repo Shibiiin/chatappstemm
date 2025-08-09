@@ -232,10 +232,12 @@ class _FileMessageContentState extends State<_FileMessageContent> {
 
     final filePath = '$downloadPath/${widget.fileName}';
     if (await File(filePath).exists()) {
-      setState(() {
-        _isDownloaded = true;
-        _localFilePath = filePath;
-      });
+      if (mounted) {
+        setState(() {
+          _isDownloaded = true;
+          _localFilePath = filePath;
+        });
+      }
     }
   }
 
@@ -247,6 +249,8 @@ class _FileMessageContentState extends State<_FileMessageContent> {
   }
 
   Future<void> _downloadAndOpenFile() async {
+    if (_isDownloading) return;
+
     final controller = Provider.of<ChatController>(context, listen: false);
     if (widget.fileUrl == null) return;
 
@@ -258,20 +262,20 @@ class _FileMessageContentState extends State<_FileMessageContent> {
       return;
     }
 
-    setState(() {
-      _isDownloading = true;
-    });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Downloading file...")));
+    if (mounted)
+      setState(() {
+        _isDownloading = true;
+      });
 
     try {
       final downloadPath = await controller.getDownloadPath();
       if (downloadPath == null) {
-        customToastMsg("Could not get download path. Permission denied?");
-        setState(() {
-          _isDownloading = false;
-        });
+        // This is where your "Storage permission denied" message comes from.
+        // The getDownloadPath function already shows a toast.
+        if (mounted)
+          setState(() {
+            _isDownloading = false;
+          });
         return;
       }
 
@@ -279,20 +283,23 @@ class _FileMessageContentState extends State<_FileMessageContent> {
       final response = await http.get(Uri.parse(widget.fileUrl!));
       await File(filePath).writeAsBytes(response.bodyBytes);
 
-      setState(() {
-        _isDownloaded = true;
-        _localFilePath = filePath;
-        _isDownloading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isDownloaded = true;
+          _localFilePath = filePath;
+          _isDownloading = false;
+        });
+      }
 
       final result = await OpenFile.open(filePath);
       if (result.type != ResultType.done) {
         customToastMsg("Could not open file: ${result.message}");
       }
     } catch (e) {
-      setState(() {
-        _isDownloading = false;
-      });
+      if (mounted)
+        setState(() {
+          _isDownloading = false;
+        });
       errorPrint("Failed to download or open file: $e");
       customToastMsg("Failed to download or open file: $e");
     }
@@ -341,7 +348,9 @@ class _FileMessageContentState extends State<_FileMessageContent> {
                 ),
               )
             else if (!_isDownloaded)
-              const Icon(Icons.download_for_offline, color: Colors.white),
+              const Icon(Icons.download_for_offline, color: Colors.white)
+            else
+              const SizedBox(width: 24),
           ],
         ),
       ),

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:chatappstemm/Stemm%20Chat%20App/presentation/widget/custom_Toast.dart';
 import 'package:chatappstemm/Stemm%20Chat%20App/presentation/widget/custom_print.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -212,36 +213,42 @@ class ChatController with ChangeNotifier {
   }
 
   ///download the files
+
   Future<String?> getDownloadPath() async {
-    Directory? directory;
-    alertPrint("Downloading started");
     try {
-      var status = await Permission.storage.status;
-      if (!status.isGranted) {
-        status = await Permission.storage.request();
-      }
-      alertPrint("Request Status $status");
-      if (status.isGranted) {
-        if (Platform.isIOS) {
-          directory = await getApplicationDocumentsDirectory();
+      if (Platform.isAndroid) {
+        final androidInfo = await DeviceInfoPlugin().androidInfo;
+        final sdkInt = androidInfo.version.sdkInt;
+
+        if (sdkInt >= 33) {
+          final status = await [
+            Permission.photos,
+            Permission.videos,
+            Permission.audio,
+          ].request();
+
+          if (status.values.any((p) => p.isDenied)) {
+            errorPrint("Permission denied.");
+            return null;
+          }
+        } else if (sdkInt >= 30) {
+          final status = await Permission.manageExternalStorage.request();
+          if (!status.isGranted) return null;
         } else {
-          directory = Directory('/storage/emulated/0/Download');
-          if (!await directory.exists()) {
-            directory = await getExternalStorageDirectory();
-            alertPrint("Directory $directory");
-          }
+          final status = await Permission.storage.request();
+          if (!status.isGranted) return null;
         }
-        if (directory != null) {
-          String appFolderPath = '${directory.path}/Chat App';
-          final appDir = Directory(appFolderPath);
-          if (!await appDir.exists()) {
-            await appDir.create(recursive: true);
-          }
-          return appFolderPath;
+
+        final downloadsDir = Directory(
+          '/storage/emulated/0/Download/ChatAppStemm',
+        );
+        if (!await downloadsDir.exists()) {
+          await downloadsDir.create(recursive: true);
         }
-      } else {
-        customToastMsg("Storage permission denied.");
-        errorPrint("Storage permission denied.");
+        return downloadsDir.path;
+      } else if (Platform.isIOS) {
+        final directory = await getApplicationDocumentsDirectory();
+        return directory.path;
       }
     } catch (err) {
       errorPrint("Error getting download path: $err");
