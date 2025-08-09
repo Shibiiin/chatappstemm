@@ -85,13 +85,21 @@ class _MessageWidgetState extends State<MessageWidget> {
                   color: isSender ? AppColors.green : AppColors.chatBlack,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: _buildMessageContent(),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 4.0, left: 5, right: 5),
-                child: Text(
-                  DateFormat('hh:mm a').format(timestamp),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                child: Column(
+                  crossAxisAlignment: isSender
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.end,
+                  mainAxisAlignment: isSender
+                      ? MainAxisAlignment.start
+                      : MainAxisAlignment.end,
+                  children: [
+                    _buildMessageContent(),
+                    Text(
+                      textAlign: isSender ? TextAlign.end : TextAlign.start,
+                      DateFormat('hh:mm a').format(timestamp),
+                      style: TextStyle(fontSize: 12, color: Colors.white38),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -114,14 +122,51 @@ class _VideoMessageContent extends StatefulWidget {
 
 class _VideoMessageContentState extends State<_VideoMessageContent> {
   bool _isDownloading = false;
+  bool _isDownloaded = false;
+  String _localVideoPath = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIfVideoExists();
+    });
+  }
+
+  Future<void> _checkIfVideoExists() async {
+    final controller = Provider.of<ChatController>(context, listen: false);
+    final downloadPath = await controller.getDownloadPath();
+    if (downloadPath == null || widget.videoUrl == null) return;
+
+    final fileName = widget.videoUrl!.split('/').last.split('?').first;
+    final filePath = '$downloadPath/$fileName';
+
+    if (await File(filePath).exists()) {
+      if (mounted) {
+        setState(() {
+          _isDownloaded = true;
+          _localVideoPath = filePath;
+        });
+      }
+    }
+  }
 
   Future<void> _downloadAndPlayVideo() async {
+    if (_isDownloading) return;
+
     final controller = Provider.of<ChatController>(context, listen: false);
     if (widget.videoUrl == null) return;
 
-    setState(() {
-      _isDownloading = true;
-    });
+    if (_isDownloaded) {
+      final result = await OpenFile.open(_localVideoPath);
+      if (result.type != ResultType.done) {
+        customToastMsg("Could not open video: ${result.message}");
+      }
+      return;
+    }
+
+    if (mounted) setState(() => _isDownloading = true);
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Downloading video...")));
@@ -130,9 +175,7 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
       final downloadPath = await controller.getDownloadPath();
       if (downloadPath == null) {
         customToastMsg("Could not get download path. Permission denied?");
-        setState(() {
-          _isDownloading = false;
-        });
+        if (mounted) setState(() => _isDownloading = false);
         return;
       }
 
@@ -142,48 +185,82 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
       final response = await http.get(Uri.parse(widget.videoUrl!));
       await File(filePath).writeAsBytes(response.bodyBytes);
 
-      customToastMsg("Video saved to your Downloads folder!");
-
-      final result = await OpenFile.open(filePath);
-      if (result.type != ResultType.done) {
-        customToastMsg("Could not open video: ${result.message}");
+      if (mounted) {
+        setState(() {
+          _isDownloaded = true;
+          _localVideoPath = filePath;
+          _isDownloading = false;
+        });
       }
+
+      customToastMsg("Video saved to your Downloads folder!");
+      await OpenFile.open(filePath);
     } catch (e) {
       errorPrint("Failed to download video: $e");
       customToastMsg("Failed to download video.");
-    } finally {
-      setState(() {
-        _isDownloading = false;
-      });
+      if (mounted) setState(() => _isDownloading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _downloadAndPlayVideo,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(widget.thumbnailUrl!),
-            )
-          else
-            Container(
-              height: 200,
-              width: 200,
-              color: Colors.black,
-              child: const Center(
-                child: Icon(Icons.videocam_off, color: Colors.white),
-              ),
-            ),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Fixed size container to avoid shrinking
+        SizedBox(
+          height: 200,
+          width: 200,
+          child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(widget.thumbnailUrl!, fit: BoxFit.cover),
+                )
+              : Container(
+                  color: Colors.black,
+                  child: const Center(
+                    child: Icon(Icons.videocam_off, color: Colors.white),
+                  ),
+                ),
+        ),
 
-          if (_isDownloading)
-            const CircularProgressIndicator(color: Colors.white)
-          else
-            Container(
+        // Upload progress overlay
+        ValueListenableBuilder<double>(
+          valueListenable: Provider.of<ChatController>(context).uploadProgress,
+          builder: (context, progress, _) {
+            if (progress > 0 && progress < 1) {
+              return Container(
+                height: 200,
+                width: 200,
+                color: Colors.black54,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        value: progress,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        "${(progress * 100).toStringAsFixed(0)}%",
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+
+        if (_isDownloading)
+          const CircularProgressIndicator(color: Colors.white)
+        else if (!_isDownloaded)
+          GestureDetector(
+            onTap: _downloadAndPlayVideo,
+            child: Container(
               padding: const EdgeInsets.all(8),
               decoration: const BoxDecoration(
                 color: Colors.black54,
@@ -195,8 +272,8 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
                 size: 30,
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -255,27 +332,16 @@ class _FileMessageContentState extends State<_FileMessageContent> {
     if (widget.fileUrl == null) return;
 
     if (_isDownloaded) {
-      final result = await OpenFile.open(_localFilePath);
-      if (result.type != ResultType.done) {
-        customToastMsg("Could not open file: ${result.message}");
-      }
+      await OpenFile.open(_localFilePath);
       return;
     }
 
-    if (mounted)
-      setState(() {
-        _isDownloading = true;
-      });
+    if (mounted) setState(() => _isDownloading = true);
 
     try {
       final downloadPath = await controller.getDownloadPath();
       if (downloadPath == null) {
-        // This is where your "Storage permission denied" message comes from.
-        // The getDownloadPath function already shows a toast.
-        if (mounted)
-          setState(() {
-            _isDownloading = false;
-          });
+        if (mounted) setState(() => _isDownloading = false);
         return;
       }
 
@@ -291,15 +357,9 @@ class _FileMessageContentState extends State<_FileMessageContent> {
         });
       }
 
-      final result = await OpenFile.open(filePath);
-      if (result.type != ResultType.done) {
-        customToastMsg("Could not open file: ${result.message}");
-      }
+      await OpenFile.open(filePath);
     } catch (e) {
-      if (mounted)
-        setState(() {
-          _isDownloading = false;
-        });
+      if (mounted) setState(() => _isDownloading = false);
       errorPrint("Failed to download or open file: $e");
       customToastMsg("Failed to download or open file: $e");
     }
@@ -309,50 +369,88 @@ class _FileMessageContentState extends State<_FileMessageContent> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: _downloadAndOpenFile,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.article, color: Colors.white, size: 40),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.fileName ?? 'Document',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
+      child: Stack(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.article, color: Colors.white, size: 40),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.fileName ?? 'Document',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatBytes(widget.fileSize, 2),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatBytes(widget.fileSize, 2),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            if (_isDownloading)
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
                 ),
-              )
-            else if (!_isDownloaded)
-              const Icon(Icons.download_for_offline, color: Colors.white)
-            else
-              const SizedBox(width: 24),
-          ],
-        ),
+                const SizedBox(width: 10),
+                if (_isDownloading)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                else if (!_isDownloaded)
+                  const Icon(Icons.download_for_offline, color: Colors.white)
+                else
+                  const SizedBox(width: 24),
+              ],
+            ),
+          ),
+
+          // Upload progress overlay
+          ValueListenableBuilder<double>(
+            valueListenable: Provider.of<ChatController>(
+              context,
+            ).uploadProgress,
+            builder: (context, progress, _) {
+              if (progress > 0 && progress < 1) {
+                return Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(
+                          value: progress,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          "${(progress * 100).toStringAsFixed(0)}%",
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
     );
   }

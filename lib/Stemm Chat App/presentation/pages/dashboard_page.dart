@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../manager/chat_Controller.dart';
@@ -104,6 +105,12 @@ class _DashboardPageState extends State<DashboardPage> {
                 return Card(
                   child: ListTile(
                     leading: const CircleAvatar(child: Icon(Icons.person)),
+                    trailing: Text(
+                      DateFormat('hh:mm a').format(
+                        (chatData['lastMessageTimestamp'] as Timestamp)
+                            .toDate(),
+                      ),
+                    ),
                     title: Text(
                       otherUserName,
                       style: const TextStyle(fontWeight: FontWeight.bold),

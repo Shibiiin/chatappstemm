@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:chatappstemm/Stemm%20Chat%20App/presentation/widget/custom_print.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +10,7 @@ import '../manager/chat_Controller.dart';
 import '../theme/app_colors.dart';
 import '../widget/chat_inputField_widget.dart';
 import '../widget/message_widget.dart';
+import '../widget/pending_upload.dart';
 
 class MessagesScreen extends StatefulWidget {
   final String id;
@@ -24,21 +24,31 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  // This function is correct.
+  final List<File> _pendingFiles = [];
   void handleFilePicked(File file, {bool isVideo = false}) {
     final chatController = Provider.of<ChatController>(context, listen: false);
-    chatController.sendMediaMessage(
-      file: file,
-      receiverId: widget.id,
-      receiverName: widget.name,
-      type: isVideo ? 'video' : 'file',
-    );
+    setState(() {
+      _pendingFiles.add(file);
+    });
+    chatController
+        .sendMediaMessage(
+          file: file,
+          receiverId: widget.id,
+          receiverName: widget.name,
+          type: isVideo ? 'video' : 'file',
+        )
+        .whenComplete(() {
+          if (mounted) {
+            setState(() {
+              _pendingFiles.remove(file);
+            });
+          }
+        });
   }
 
   @override
   void initState() {
     super.initState();
-    // This is fine.
   }
 
   @override
@@ -62,40 +72,48 @@ class _MessagesScreenState extends State<MessagesScreen> {
               child: StreamBuilder<QuerySnapshot>(
                 stream: chatController.getMessages(widget.id),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      _pendingFiles.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    errorPrint("Error on message page ${snapshot.error}");
                     return const Center(
                       child: Text('No messages yet. Say hi!'),
                     );
                   }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(
-                      child: Text('No messages yet. Say hi!'),
-                    );
-                  }
-                  final messages = snapshot.data!.docs;
+
+                  final messages = snapshot.data?.docs ?? [];
+                  List<dynamic> displayItems = [];
+                  displayItems.addAll(messages);
+                  displayItems.addAll(_pendingFiles);
+
                   return ListView.builder(
                     reverse: true,
-                    itemCount: messages.length,
+                    itemCount: displayItems.length,
                     itemBuilder: (context, index) {
-                      final messageDoc = messages[index];
-                      final messageData =
-                          messageDoc.data() as Map<String, dynamic>;
+                      final item = displayItems[index];
 
-                      // --- THIS IS THE CORRECTED CODE ---
-                      // Pass the entire data map to the MessageWidget.
-                      // The widget itself will figure out what to display.
-                      return MessageWidget(messageData: messageData);
-                      // --- END OF CORRECTION ---
+                      if (item is File) {
+                        final isVideo =
+                            item.path.endsWith('.mp4') ||
+                            item.path.endsWith('.mov');
+                        return PendingUploadWidget(
+                          file: item,
+                          isVideo: isVideo,
+                        );
+                      } else if (item is QueryDocumentSnapshot) {
+                        final messageData = item.data() as Map<String, dynamic>;
+                        return MessageWidget(messageData: messageData);
+                      } else {
+                        return const SizedBox.shrink();
+                      }
                     },
                   );
+                  // --- END OF CORRECTION ---
                 },
               ),
             ),
-            // This ChatInputField implementation is correct.
+
             ChatInputField(
               onSendPressed: (message) async {
                 if (message.trim().isNotEmpty) {
