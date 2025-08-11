@@ -28,7 +28,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   void handleFilePicked(File file, {bool isVideo = false}) {
     final chatController = Provider.of<ChatController>(context, listen: false);
 
-    final fileKey = 'uploads/${file.path.split('/').last}'; // create once
+    final fileKey = 'uploads/${file.path.split('/').last}';
 
     setState(() {
       _pendingFiles.add(file);
@@ -106,7 +106,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         return PendingUploadWidget(
                           file: item,
                           isVideo: isVideo,
-                          fileKey: fileKey, // correct variable
+                          fileKey: fileKey,
                         );
                       } else if (item is QueryDocumentSnapshot) {
                         final messageData = item.data() as Map<String, dynamic>;
@@ -144,7 +144,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  // This buildAppBar function is correct.
   PreferredSizeWidget buildAppBar(
     BuildContext context,
     String title,

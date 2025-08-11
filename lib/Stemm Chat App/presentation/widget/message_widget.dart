@@ -117,7 +117,7 @@ class _VideoMessageContent extends StatefulWidget {
   final String? thumbnailUrl;
   final String? videoUrl;
   final String senderId;
-  final String? uploadKey; // ✅ match key with uploadFile path
+  final String? uploadKey;
 
   const _VideoMessageContent({
     this.thumbnailUrl,
@@ -217,7 +217,6 @@ class _VideoMessageContentState extends State<_VideoMessageContent> {
                 ),
         ),
 
-        // ✅ Correct progress key
         ValueListenableBuilder<Map<String, double>>(
           valueListenable: Provider.of<ChatController>(
             context,
@@ -265,7 +264,7 @@ class _FileMessageContent extends StatefulWidget {
   final String? fileName;
   final int? fileSize;
   final String? fileUrl;
-  final String? senderId; // ✅ Added senderId
+  final String? senderId;
 
   const _FileMessageContent({
     this.fileName,
@@ -396,7 +395,6 @@ class _FileMessageContentState extends State<_FileMessageContent> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // ✅ Show download icon only if NOT sender
                 if (!isSender)
                   if (_isDownloading)
                     const SizedBox(
